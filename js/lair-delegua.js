@@ -6,7 +6,7 @@ const interpretador = new delegua.InterpretadorBase('', false, console.log, cons
 
 window.executarInstrucaoDelegua = async (terminal, linha) => {
     const resultadoLexador = lexador.mapear([linha], -1);
-    const resultadoAvaliacaoSintatica = avaliadorSintatico.analisar(resultadoLexador);
+    const resultadoAvaliacaoSintatica = await avaliadorSintatico.analisar(resultadoLexador);
     const retornoInterpretador = await interpretador.interpretar(
         resultadoAvaliacaoSintatica.declaracoes,
         false

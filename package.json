@@ -1,11 +1,17 @@
 {
+  "name": "delegua-xterm-web",
+  "description": "Uma simulação de terminal para a Web executando Delégua e Pituguês.",
+  "scripts": {
+    "testar": "http-server -c-1 -p 7777"
+  },
   "dependencies": {
-    "@designliquido/delegua": "^0.34.1",
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/xterm": "^5.5.0"
+    "@designliquido/delegua": "^1.23.2",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0"
   },
   "devDependencies": {
     "browserify": "latest",
+    "http-server": "^14.1.1",
     "typescript": "^5.4.5"
   }
 }

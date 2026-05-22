@@ -7,19 +7,19 @@ window.comandos = {
         let remaining = description;
         const d = [];
         while (remaining.length > 0) {
-          // Trim any spaces left over from the previous line
+          // Remover espaços deixados pela linha anterior
           remaining = remaining.trimStart();
-          // Check if the remaining text fits
+          // Verificar se o texto restante cabe
           if (remaining.length < maxLength) {
             d.push(remaining);
             remaining = "";
           } else {
             let splitIndex = -1;
-            // Check if the remaining line wraps already
+            // Verificar se a linha restante já quebra
             if (remaining[maxLength] === " ") {
               splitIndex = maxLength;
             } else {
-              // Find the last space to use as the split index
+              // Encontrar o último espaço para usar como índice de divisão
               for (let i = maxLength - 1; i >= 0; i--) {
                 if (remaining[i] === " ") {
                   splitIndex = i;
@@ -38,7 +38,7 @@ window.comandos = {
       }
       term.writeln(
         [
-          "Welcome to xterm.js! Try some of the commands below.",
+          "Nossas boas-vindas à simulação de terminal Delégua na Web! Experimente alguns dos comandos abaixo.",
           "",
           ...Object.keys(commands).map((e) =>
             formatMessage(e, commands[e].description)
@@ -47,6 +47,6 @@ window.comandos = {
       );
       prompt(term);
     },
-    description: "Prints this help message",
+    description: "Imprime esta mensagem de ajuda.",
   }
 };

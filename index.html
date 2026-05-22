@@ -23,6 +23,7 @@
 
       const delegua = window.Delegua;
       var comando = "";
+      var cursorPos = 0;
       var resultadoLeia = "";
       var modoDelegua = false;
       var comandoLeia = false;
@@ -30,11 +31,10 @@
 
       const lexador = new delegua.Lexador();
       const avaliadorSintatico = new delegua.AvaliadorSintatico();
-      const interpretador = new delegua.InterpretadorBase('', false, term.write, term.write);
+      const interpretador = new delegua.InterpretadorBase('', false, (t) => term.write(t + "\r\n"), (t) => term.write(t));
       interpretador.interfaceEntradaSaida = {
         question: (mensagem, callback) => {
           comandoLeia = true;
-          term.write("\r\n");
           term.write(mensagem);
           promessaLeitura.wait().then(_ => {
             const copiaResultadoLeia = resultadoLeia;
@@ -44,34 +44,65 @@
         }
       }
 
+      // Persist parser scope across LAIR calls so variables declared in one line
+      // are visible to the parser in subsequent lines.
+      const escopoSintaticoPersistente = {};
+      const _inicializarPilhaOriginal = avaliadorSintatico.inicializarPilhaEscopos.bind(avaliadorSintatico);
+      avaliadorSintatico.inicializarPilhaEscopos = function() {
+        _inicializarPilhaOriginal();
+        for (const [nome, info] of Object.entries(escopoSintaticoPersistente)) {
+          this.pilhaEscopos.definirInformacoesVariavel(nome, info);
+        }
+      };
+
       async function executarInstrucaoDelegua(terminal, linha) {
         const resultadoLexador = lexador.mapear([linha], -1);
-        const resultadoAvaliacaoSintatica = avaliadorSintatico.analisar(resultadoLexador);
+        const resultadoAvaliacaoSintatica = await avaliadorSintatico.analisar(resultadoLexador);
+        if (resultadoAvaliacaoSintatica.erros.length > 0) {
+          for (const erro of resultadoAvaliacaoSintatica.erros) {
+            terminal.write((erro.erroInterno?.message ?? String(erro)) + "\r\n");
+          }
+          deleguaPrompt(terminal);
+          return;
+        }
+        // Save parser scope so future LAIR lines see variables declared here.
+        if (avaliadorSintatico.pilhaEscopos?.pilha?.length > 0) {
+          Object.assign(escopoSintaticoPersistente, avaliadorSintatico.pilhaEscopos.pilha[0].elementosSintaticos);
+        }
         interpretador.interpretar(
           resultadoAvaliacaoSintatica.declaracoes,
           true
         ).then(retornoInterpretador => {
-          if (retornoInterpretador.resultado.length > 0) {
+          if (retornoInterpretador.erros.length > 0) {
+            for (const erro of retornoInterpretador.erros) {
+              terminal.write((erro.erroInterno?.message ?? String(erro.erroInterno)) + "\r\n");
+            }
+          } else if (retornoInterpretador.resultado.length > 0) {
             const primeiroResultado = retornoInterpretador.resultado[0];
-            terminal.write("\r\n");
-            terminal.write(primeiroResultado);
+            if (primeiroResultado?.tipo !== 'vazio') {
+              const valor = primeiroResultado?.valorRetornado?.valor ?? primeiroResultado?.valor;
+              if (valor !== undefined && valor !== null) {
+                terminal.write(String(valor) + "\r\n");
+              }
+            }
           }
-          
-          terminal.write("\r\n");
+
           deleguaPrompt(terminal);
         });
       }
-      
+
       term.open(document.getElementById("terminal"));
       fitAddon.fit();
 
       function terminalPrompt(term) {
         comando = "";
+        cursorPos = 0;
         term.write("\r\n$ ");
       }
 
       function deleguaPrompt(terminal) {
         comando = "";
+        cursorPos = 0;
         terminal.write("\r\ndelegua> ");
       }
 
@@ -115,7 +146,7 @@
             }
             term.writeln(
               [
-                "Bem-vindo(a) ao terminal on-line da Design Líquido! Experimente um dos comandos abaixo.",
+                "Nossas boas-vindas à simulação de terminal Delégua na Web! Experimente alguns dos comandos abaixo.",
                 "",
                 ...Object.keys(comandos).map((e) =>
                   formatMessage(e, comandos[e].descricao)
@@ -124,7 +155,7 @@
             );
             terminalPrompt(term);
           },
-          descricao: "Imprime esta mensagem de ajuda",
+          descricao: "Imprime esta mensagem de ajuda.",
         },
         delegua: {
           descricao: "Inicia o modo LAIR (Leia-Avalie-Imprima-Repita) da linguagem Delégua",
@@ -165,7 +196,7 @@
 
       term.onData((e) => {
         switch (e) {
-          case "\u0003": // Ctrl+C
+          case "": // Ctrl+C
             if (modoDelegua) {
               modoDelegua = false;
             }
@@ -175,6 +206,7 @@
             break;
           case "\r": // Enter
             if (modoDelegua) {
+              term.write("\r\n");
               if (comandoLeia) {
                 comandoLeia = false;
                 resultadoLeia = comando; // Preciso fazer isso porque o callback da leitura é executado depois que `comando` é limpo.
@@ -185,27 +217,49 @@
             } else {
               executarComando(term, comando);
             }
-            
+
             comando = "";
+            cursorPos = 0;
             break;
-          case "\u007F": // Backspace (DEL)
-            // Não excluir o prompt
-            const bufferAtual = modoDelegua ? 9 : 2;
-            if (term._core.buffer.x > bufferAtual) {
-              term.write("\b \b");
-              if (comando.length > 0) {
-                comando = comando.substr(0, comando.length - 1);
+          case "": // Backspace (DEL)
+            if (cursorPos > 0) {
+              const tail = comando.slice(cursorPos);
+              comando = comando.slice(0, cursorPos - 1) + tail;
+              cursorPos--;
+              if (tail.length === 0) {
+                term.write("\b \b");
+              } else {
+                term.write("\b" + tail + " \x1b[" + (tail.length + 1) + "D");
               }
+            }
+            break;
+          case "\x1b[D": // Seta esquerda
+            if (cursorPos > 0) {
+              cursorPos--;
+              term.write("\x1b[D");
+            }
+            break;
+          case "\x1b[C": // Seta direita
+            if (cursorPos < comando.length) {
+              cursorPos++;
+              term.write("\x1b[C");
             }
             break;
           default: // Caso geral: imprimir todos os caracteres.
             if (
               (e >= String.fromCharCode(0x20) &&
                 e <= String.fromCharCode(0x7e)) ||
-              e >= "\u00a0"
+              e >= " "
             ) {
-              comando += e;
-              term.write(e);
+              if (cursorPos === comando.length) {
+                comando += e;
+                term.write(e);
+              } else {
+                comando = comando.slice(0, cursorPos) + e + comando.slice(cursorPos);
+                const tail = comando.slice(cursorPos + 1);
+                term.write(e + tail + "\x1b[" + tail.length + "D");
+              }
+              cursorPos++;
             }
         }
       });
