@@ -12,6 +12,14 @@ const tempo = require('@designliquido/delegua-tempo');
 const { ObjetoData } = require('@designliquido/delegua-tempo/objeto-data');
 const NOMES_BIBLIOTECAS = ['criptografia', 'estatistica', 'fisica', 'json', 'matematica', 'tempo'];
 
+function extrairNomeTopico(elemento) {
+    if (!elemento) return null;
+    if (elemento.simbolo && elemento.simbolo.lexema) return elemento.simbolo.lexema;
+    if (elemento.valor !== undefined && typeof elemento.valor === 'string') return elemento.valor;
+    if (elemento.lexema) return elemento.lexema;
+    return null;
+}
+
 class InterpretadorComBibliotecas extends Interpretador {
     constructor(diretorioBase, performance, funcaoDeRetorno, funcaoDeRetornoMesmaLinha) {
         super(diretorioBase, performance, funcaoDeRetorno, funcaoDeRetornoMesmaLinha);
@@ -35,6 +43,14 @@ class InterpretadorComBibliotecas extends Interpretador {
 
     async visitarExpressaoImportar(expressao) {
         return this._resolverImporte(expressao.caminho.valor, expressao.linha);
+    }
+
+    async visitarDeclaracaoAjuda(declaracao) {
+        if (declaracao.funcao && declaracao.elemento) {
+            const nome = extrairNomeTopico(declaracao.elemento);
+            return Promise.resolve({ __conteudoAjuda: true, topico: nome || '' });
+        }
+        return Promise.resolve({ __modoAjuda: true });
     }
 }
 

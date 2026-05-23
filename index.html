@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
   <head>
     <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css" />
@@ -26,6 +26,7 @@
       var cursorPos = 0;
       var resultadoLeia = "";
       var modoDelegua = false;
+      var modoAjuda = false;
       var comandoLeia = false;
       var promessaLeitura = new window.Subject();
 
@@ -79,6 +80,26 @@
             }
           } else if (retornoInterpretador.resultado.length > 0) {
             const primeiroResultado = retornoInterpretador.resultado[0];
+            const valorRetornado = primeiroResultado?.valorRetornado ?? primeiroResultado;
+
+            if (valorRetornado?.__modoAjuda === true) {
+              modoAjuda = true;
+              exibirBoasVindasAjuda(terminal);
+              ajudaPrompt(terminal);
+              return;
+            }
+
+            if (valorRetornado?.__conteudoAjuda === true) {
+              const conteudo = buscarConteudoAjuda(valorRetornado.topico);
+              if (conteudo) {
+                terminal.write(aplicarRealceSintaxeWeb(conteudo).replace(/\n/g, '\r\n'));
+              } else {
+                terminal.writeln('\x1b[31mNenhuma ajuda disponível para "' + valorRetornado.topico + '".\x1b[0m');
+              }
+              deleguaPrompt(terminal);
+              return;
+            }
+
             if (primeiroResultado?.tipo !== 'vazio') {
               const valor = primeiroResultado?.valorRetornado?.valor ?? primeiroResultado?.valor;
               if (valor !== undefined && valor !== null) {
@@ -104,6 +125,753 @@
         comando = "";
         cursorPos = 0;
         terminal.write("\r\ndelegua> ");
+      }
+
+      function ajudaPrompt(terminal) {
+        comando = "";
+        cursorPos = 0;
+        terminal.write("\r\najuda> ");
+      }
+
+      // ─── Conteúdo de ajuda ───────────────────────────────────────────────────
+
+      var conteudoAjuda = {
+        'escreva': `
+# escreva(valores...)
+
+Escreve valores na saída padrão (console).
+
+**Sintaxe:**
+  escreva(valor1, valor2, ...)
+
+**Parâmetros:**
+  - valores: Um ou mais valores de qualquer tipo a serem impressos
+
+**Retorno:**
+  nulo
+
+**Características:**
+  - Aceita múltiplos argumentos separados por vírgula
+  - Suporta interpolação de strings com \${variavel}
+  - Converte automaticamente valores para texto
+
+**Exemplos:**
+  escreva(1)
+  var nome = 'Maria'
+  escreva(nome)
+  escreva('Números:', 1, 2, 3)
+`,
+        'leia': `
+# leia([mensagem])
+
+Lê entrada do usuário a partir da entrada padrão.
+
+**Sintaxe:**
+  leia()
+  leia(mensagem)
+
+**Parâmetros:**
+  - mensagem (opcional): Texto a ser exibido antes da leitura
+
+**Retorno:**
+  texto - Sempre retorna uma string
+
+**Importante:**
+  O retorno de leia() é SEMPRE do tipo texto. Para converter
+  para outro tipo, use as funções de conversão (numero, inteiro, etc.)
+
+**Exemplos:**
+  var nome = leia()
+  escreva('Olá, ' + nome)
+
+  var idadeTexto = leia('Digite sua idade: ')
+  var idade = inteiro(idadeTexto)
+`,
+        'numero': `
+# numero(valor)
+
+Converte um valor para número (ponto flutuante).
+
+**Sintaxe:**
+  numero(valor)
+
+**Parâmetros:**
+  - valor: Valor a ser convertido (texto, inteiro, etc.)
+
+**Retorno:**
+  número - Valor convertido para tipo numérico
+
+**Sinônimos:**
+  número() - Mesma função com acento
+
+**Exemplos:**
+  var texto = '3.14'
+  escreva(numero(texto))  // 3.14
+
+  var n = 42
+  escreva(numero(n))  // 42.0
+`,
+        'número': `
+# número(valor)
+
+Converte um valor para número (ponto flutuante).
+
+**Sintaxe:**
+  número(valor)
+
+**Parâmetros:**
+  - valor: Valor a ser convertido
+
+**Retorno:**
+  número - Valor convertido para tipo numérico
+
+**Sinônimos:**
+  numero() - Mesma função sem acento
+
+**Exemplos:**
+  var texto = '3.14'
+  escreva(número(texto))  // 3.14
+`,
+        'inteiro': `
+# inteiro(valor)
+
+Converte um valor para número inteiro.
+
+**Sintaxe:**
+  inteiro(valor)
+
+**Parâmetros:**
+  - valor: Valor a ser convertido
+
+**Retorno:**
+  inteiro - Valor convertido, truncando casas decimais
+
+**Exemplos:**
+  var texto = '42'
+  escreva(inteiro(texto))  // 42
+
+  var n = 3.7
+  escreva(inteiro(n))  // 3
+`,
+        'real': `
+# real(valor)
+
+Converte um valor para número real (ponto flutuante).
+
+**Sintaxe:**
+  real(valor)
+
+**Parâmetros:**
+  - valor: Valor a ser convertido
+
+**Retorno:**
+  real - Valor convertido para número real
+
+**Exemplos:**
+  var texto = '2.5'
+  escreva(real(texto))  // 2.5
+`,
+        'texto': `
+# texto(valor)
+
+Converte um valor para texto (string).
+
+**Sintaxe:**
+  texto(valor)
+
+**Parâmetros:**
+  - valor: Valor de qualquer tipo a ser convertido
+
+**Retorno:**
+  texto - Representação textual do valor
+
+**Exemplos:**
+  escreva(texto(123))        // '123'
+  escreva(texto(verdadeiro)) // 'verdadeiro'
+`,
+        'aleatorio': `
+# aleatorio()
+
+Retorna um número aleatório entre 0 e 1.
+
+**Sintaxe:**
+  aleatorio()
+
+**Parâmetros:**
+  Nenhum
+
+**Retorno:**
+  número - Valor aleatório entre 0.0 (inclusivo) e 1.0 (exclusivo)
+
+**Exemplos:**
+  var valor = aleatorio()
+  escreva(valor)  // Ex: 0.7234891
+`,
+        'aleatório': `
+# aleatório()
+
+Retorna um número aleatório entre 0 e 1.
+
+**Sintaxe:**
+  aleatório()
+
+**Sinônimos:**
+  aleatorio() - Mesma função sem acento
+
+**Retorno:**
+  número - Valor aleatório entre 0.0 e 1.0
+
+**Exemplos:**
+  var valor = aleatório()
+`,
+        'aleatorioEntre': `
+# aleatorioEntre(minimo, maximo)
+
+Retorna um número inteiro aleatório entre dois valores.
+
+**Sintaxe:**
+  aleatorioEntre(minimo, maximo)
+
+**Parâmetros:**
+  - minimo: Valor mínimo (inclusivo)
+  - maximo: Valor máximo (exclusivo)
+
+**Retorno:**
+  inteiro - Número aleatório no intervalo [minimo, maximo)
+
+**Exemplos:**
+  var dado = aleatorioEntre(1, 7)  // 1 a 6
+  escreva('Você tirou:', dado)
+`,
+        'mapear': `
+# mapear(vetor, funcao)
+
+Aplica uma função a cada elemento de um vetor e retorna novo vetor.
+
+**Sintaxe:**
+  mapear(vetor, funcao)
+
+**Parâmetros:**
+  - vetor: Vetor a ser transformado
+  - funcao: Função a ser aplicada em cada elemento
+
+**Retorno:**
+  vetor - Novo vetor com elementos transformados
+
+**Exemplos:**
+  var numeros = [1, 2, 3, 4]
+  var dobrados = mapear(numeros, funcao(x) { retorna x * 2 })
+  escreva(dobrados)  // [2, 4, 6, 8]
+`,
+        'filtrarPor': `
+# filtrarPor(vetor, funcao)
+
+Filtra elementos de um vetor baseado em uma condição.
+
+**Sintaxe:**
+  filtrarPor(vetor, funcao)
+
+**Parâmetros:**
+  - vetor: Vetor a ser filtrado
+  - funcao: Função que retorna verdadeiro/falso para cada elemento
+
+**Retorno:**
+  vetor - Novo vetor contendo apenas elementos que satisfazem a condição
+
+**Exemplos:**
+  var numeros = [1, 2, 3, 4, 5, 6]
+  var pares = filtrarPor(numeros, funcao(x) { retorna x % 2 == 0 })
+  escreva(pares)  // [2, 4, 6]
+`,
+        'ordenar': `
+# ordenar(vetor)
+
+Ordena os elementos de um vetor em ordem crescente.
+
+**Sintaxe:**
+  ordenar(vetor)
+
+**Parâmetros:**
+  - vetor: Vetor a ser ordenado
+
+**Retorno:**
+  vetor - Novo vetor com elementos ordenados
+
+**Exemplos:**
+  var numeros = [3, 1, 4, 1, 5, 9, 2, 6]
+  var ordenados = ordenar(numeros)
+  escreva(ordenados)  // [1, 1, 2, 3, 4, 5, 6, 9]
+`,
+        'paraCada': `
+# paraCada(vetor, funcao)
+
+Executa uma função para cada elemento de um vetor.
+
+**Sintaxe:**
+  paraCada(vetor, funcao)
+
+**Parâmetros:**
+  - vetor: Vetor a ser percorrido
+  - funcao: Função a ser executada para cada elemento
+
+**Retorno:**
+  nulo
+
+**Exemplos:**
+  var nomes = ['Ana', 'Bruno', 'Carlos']
+  paraCada(nomes, funcao(nome) {
+    escreva('Olá, ' + nome)
+  })
+`,
+        'tamanho': `
+# tamanho(colecao)
+
+Retorna o número de elementos em uma coleção.
+
+**Sintaxe:**
+  tamanho(colecao)
+
+**Parâmetros:**
+  - colecao: Vetor, texto ou dicionário
+
+**Retorno:**
+  inteiro - Quantidade de elementos
+
+**Exemplos:**
+  var lista = [1, 2, 3, 4, 5]
+  escreva(tamanho(lista))  // 5
+
+  var texto = 'Delégua'
+  escreva(tamanho(texto))  // 7
+`,
+        'todosEmCondicao': `
+# todosEmCondicao(vetor, funcao)
+
+Verifica se todos os elementos de um vetor satisfazem uma condição.
+
+**Sintaxe:**
+  todosEmCondicao(vetor, funcao)
+
+**Parâmetros:**
+  - vetor: Vetor a ser testado
+  - funcao: Função de teste que retorna verdadeiro/falso
+
+**Retorno:**
+  lógico - verdadeiro se todos satisfazem, falso caso contrário
+
+**Exemplos:**
+  var numeros = [2, 4, 6, 8]
+  var todosPares = todosEmCondicao(numeros, funcao(x) {
+    retorna x % 2 == 0
+  })
+  escreva(todosPares)  // verdadeiro
+`,
+        'encontrar': `
+# encontrar(vetor, funcao)
+
+Encontra o primeiro elemento que satisfaz uma condição.
+
+**Sintaxe:**
+  encontrar(vetor, funcao)
+
+**Parâmetros:**
+  - vetor: Vetor onde buscar
+  - funcao: Função de teste
+
+**Retorno:**
+  Elemento encontrado ou nulo se não encontrar
+
+**Exemplos:**
+  var numeros = [1, 2, 3, 4, 5]
+  var maior3 = encontrar(numeros, funcao(x) { retorna x > 3 })
+  escreva(maior3)  // 4
+`,
+        'clonar': `
+# clonar(valor)
+
+Cria uma cópia profunda de uma variável.
+
+**Sintaxe:**
+  clonar(valor)
+
+**Parâmetros:**
+  - valor: Variável a ser clonada
+
+**Retorno:**
+  Cópia independente do valor original
+
+**Exemplos:**
+  var original = [1, [2, 3], 4]
+  var copia = clonar(original)
+  copia[1][0] = 99
+  escreva(original)  // [1, [2, 3], 4]
+`,
+        'tupla': `
+# tupla(vetor)
+
+Converte um vetor em uma tupla com campos nomeados.
+
+**Sintaxe:**
+  tupla(vetor)
+
+**Parâmetros:**
+  - vetor: Vetor com 2 a 10 elementos
+
+**Retorno:**
+  tupla - Estrutura imutável com campos nomeados
+
+**Exemplos:**
+  var dados = tupla([1, 2])
+  escreva(dados.primeiro)  // 1
+  escreva(dados.segundo)   // 2
+`,
+        'var': `
+# var
+
+Declara uma variável mutável.
+
+**Sintaxe:**
+  var nomeVariavel = valor
+
+**Exemplos:**
+  var idade = 25
+  var nome = 'João'
+  idade = 26  // Pode ser alterada
+`,
+        'const': `
+# const
+
+Declara uma constante (valor imutável).
+
+**Sintaxe:**
+  const nomeConstante = valor
+
+**Exemplos:**
+  const PI = 3.14159
+  const NOME = 'Maria'
+  // PI = 3.14  // ERRO: constantes não podem ser alteradas
+`,
+        'se': `
+# se
+
+Estrutura condicional (if).
+
+**Sintaxe:**
+  se (condicao) {
+    // código se verdadeiro
+  } senao {
+    // código se falso
+  }
+
+**Exemplos:**
+  var idade = 18
+  se (idade >= 18) {
+    escreva('Maior de idade')
+  } senao {
+    escreva('Menor de idade')
+  }
+`,
+        'senao': `
+# senao
+
+Cláusula else de uma estrutura condicional.
+
+**Sintaxe:**
+  se (condicao) {
+    // ...
+  } senao {
+    // executa se condição for falsa
+  }
+`,
+        'para': `
+# para
+
+Laço de repetição (for).
+
+**Sintaxe:**
+  para (inicializacao; condicao; incremento) {
+    // código a repetir
+  }
+
+**Exemplos:**
+  para (var i = 0; i < 5; i += 1) {
+    escreva(i)
+  }
+`,
+        'enquanto': `
+# enquanto
+
+Laço de repetição (while).
+
+**Sintaxe:**
+  enquanto (condicao) {
+    // código a repetir
+  }
+
+**Exemplos:**
+  var contador = 0
+  enquanto (contador < 5) {
+    escreva(contador)
+    contador += 1
+  }
+`,
+        'fazer': `
+# fazer
+
+Laço de repetição do-while.
+
+**Sintaxe:**
+  fazer {
+    // código a repetir
+  } enquanto (condicao)
+
+**Exemplos:**
+  var x = 0
+  fazer {
+    escreva(x)
+    x += 1
+  } enquanto (x < 3)
+`,
+        'funcao': `
+# funcao
+
+Declara uma função.
+
+**Sintaxe:**
+  funcao nomeFuncao(parametros) {
+    // corpo da função
+    retorna valor
+  }
+
+**Exemplos:**
+  funcao somar(a, b) {
+    retorna a + b
+  }
+
+  var resultado = somar(5, 3)
+  escreva(resultado)  // 8
+`,
+        'retorna': `
+# retorna
+
+Retorna um valor de uma função.
+
+**Sintaxe:**
+  retorna valor
+
+**Exemplos:**
+  funcao dobro(x) {
+    retorna x * 2
+  }
+`,
+        'verdadeiro': `
+# verdadeiro
+
+Valor booleano verdadeiro.
+
+**Tipo:**
+  lógico
+
+**Exemplos:**
+  var ativo = verdadeiro
+  se (ativo) {
+    escreva('Sistema ativo')
+  }
+`,
+        'falso': `
+# falso
+
+Valor booleano falso.
+
+**Tipo:**
+  lógico
+
+**Exemplos:**
+  var desligado = falso
+`,
+        'nulo': `
+# nulo
+
+Representa a ausência de valor.
+
+**Tipo:**
+  nulo
+
+**Exemplos:**
+  var semValor = nulo
+  se (semValor == nulo) {
+    escreva('Sem valor')
+  }
+`,
+      };
+
+      function normalizarParaBusca(texto) {
+        return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      }
+
+      function buscarConteudoAjuda(topico) {
+        if (conteudoAjuda[topico]) return conteudoAjuda[topico];
+        const norm = normalizarParaBusca(topico);
+        for (const [chave, conteudo] of Object.entries(conteudoAjuda)) {
+          if (normalizarParaBusca(chave) === norm) return conteudo;
+        }
+        return null;
+      }
+
+      function aplicarRealceSintaxeWeb(conteudo) {
+        const PALAVRAS_CHAVE = new Set(['var', 'const', 'se', 'senao', 'senão', 'para', 'enquanto',
+          'fazer', 'funcao', 'função', 'retorna', 'classe', 'herda', 'construtor', 'isto',
+          'super', 'tente', 'pegue', 'finalmente', 'sustar', 'continua', 'escolha', 'caso',
+          'padrao', 'padrão', 'importar', 'de', 'como']);
+        const LITERAIS = new Set(['verdadeiro', 'falso', 'nulo']);
+        const FUNCOES_NATIVAS = new Set(['escreva', 'leia', 'mapear', 'filtrarPor', 'ordenar',
+          'paraCada', 'numero', 'número', 'inteiro', 'real', 'texto', 'tamanho', 'aleatorio',
+          'aleatório', 'aleatorioEntre', 'clonar', 'tupla', 'todosEmCondicao', 'encontrar',
+          'somar', 'maximo', 'máximo', 'minimo', 'mínimo']);
+
+        function c(code, text) { return `\x1b[${code}m${text}\x1b[0m`; }
+
+        function realcarLinha(linha) {
+          let res = '', i = 0;
+          while (i < linha.length) {
+            if (linha.substring(i, i + 2) === '//') { res += c('90', linha.substring(i)); break; }
+            if (linha[i] === '"') {
+              let j = i + 1;
+              while (j < linha.length) { if (linha[j] === '\\' && j + 1 < linha.length) { j += 2; continue; } if (linha[j] === '"') { j++; break; } j++; }
+              res += c('32', linha.substring(i, j)); i = j; continue;
+            }
+            if (linha[i] === "'") {
+              let j = i + 1;
+              while (j < linha.length && linha[j] !== "'") { if (linha[j] === '\\') j++; j++; }
+              res += c('32', linha.substring(i, j + 1)); i = j + 1; continue;
+            }
+            if (/\d/.test(linha[i])) {
+              let j = i;
+              while (j < linha.length && /[\d.]/.test(linha[j])) j++;
+              res += c('36', linha.substring(i, j)); i = j; continue;
+            }
+            if (/[a-záàâãéêíóôõúçA-ZÁÀÂÃÉÊÍÓÔÕÚÇ_]/.test(linha[i])) {
+              let j = i;
+              while (j < linha.length && /[a-záàâãéêíóôõúçA-ZÁÀÂÃÉÊÍÓÔÕÚÇ0-9_]/.test(linha[j])) j++;
+              const w = linha.substring(i, j);
+              if (PALAVRAS_CHAVE.has(w)) res += c('35', w);
+              else if (LITERAIS.has(w)) res += c('33', w);
+              else if (FUNCOES_NATIVAS.has(w)) res += c('34', w);
+              else res += w;
+              i = j; continue;
+            }
+            if ('(){}[]'.includes(linha[i])) { res += c('33', linha[i]); i++; continue; }
+            res += linha[i]; i++;
+          }
+          return res;
+        }
+
+        function realcarInline(texto) {
+          return texto
+            .replace(/`([^`]+)`/g, (_, g) => c('33', g))
+            .replace(/\*\*([^*]+)\*\*/g, (_, g) => c('1;37', g))
+            .replace(/\*([^*]+)\*/g, (_, g) => c('3', g));
+        }
+
+        function realcarMarkdown(linha) {
+          if (linha.trim() === '') return linha;
+          if (/^\s*---\s*$/.test(linha)) return c('90', linha);
+          const tm = linha.match(/^(#{1,6})\s+(.*)$/);
+          if (tm) return `${c('36;1', tm[1])} ${c('36;1', tm[2])}`;
+          const lm = linha.match(/^\s*([-*])\s+(.*)$/);
+          if (lm) return `${c('33', lm[1])} ${realcarInline(lm[2])}`;
+          return realcarInline(linha);
+        }
+
+        const linhas = conteudo.split('\n');
+        const resultado = [];
+        let emExemplo = false;
+        for (const linha of linhas) {
+          if (linha.includes('**Exemplos:**') || linha.includes('**Exemplo:**')) {
+            emExemplo = true; resultado.push(realcarMarkdown(linha)); continue;
+          }
+          if (emExemplo && linha.includes('**') && !linha.includes('Exemplo')) emExemplo = false;
+          if (emExemplo && /^  [^ ]/.test(linha)) {
+            const indent = linha.match(/^(\s*)/)[1];
+            resultado.push(indent + realcarLinha(linha.trimStart()));
+          } else {
+            resultado.push(realcarMarkdown(linha));
+          }
+        }
+        return resultado.join('\n');
+      }
+
+      function exibirBoasVindasAjuda(terminal) {
+        const sep = '\x1b[36;1m' + '═'.repeat(63) + '\x1b[0m';
+        terminal.writeln([
+          '',
+          sep,
+          '\x1b[1mBem-vindo ao sistema de ajuda de Delégua!\x1b[0m',
+          sep,
+          '',
+          'Este é um utilitário de ajuda interativo.',
+          '',
+          'Digite o nome de qualquer \x1b[33mfunção\x1b[0m, \x1b[33mpalavra-chave\x1b[0m ou \x1b[33mtópico\x1b[0m',
+          'para obter ajuda sobre esse item.',
+          '',
+          '\x1b[1mComandos disponíveis:\x1b[0m',
+          '  \x1b[32mtópicos\x1b[0m  - Lista todos os tópicos disponíveis',
+          '  \x1b[32msair\x1b[0m     - Sai do modo de ajuda',
+          '',
+          '\x1b[2mExemplo: digite "escreva" para ver a ajuda sobre escreva()\x1b[0m',
+          '',
+        ].join('\r\n'));
+      }
+
+      function listarTopicosAjuda(terminal) {
+        const categorias = {
+          'Entrada/Saída': ['escreva', 'leia'],
+          'Conversão de Tipos': ['numero', 'número', 'inteiro', 'real', 'texto'],
+          'Aleatoriedade': ['aleatorio', 'aleatório', 'aleatorioEntre'],
+          'Funções de Vetor': ['mapear', 'filtrarPor', 'ordenar', 'paraCada', 'tamanho',
+            'todosEmCondicao', 'encontrar', 'clonar', 'tupla'],
+          'Palavras-Chave': ['var', 'const', 'se', 'senao', 'para', 'enquanto', 'fazer',
+            'funcao', 'retorna', 'verdadeiro', 'falso', 'nulo'],
+        };
+        let linhas = ['\r\n\x1b[1mTópicos de Ajuda Disponíveis:\x1b[0m'];
+        for (const [cat, topicos] of Object.entries(categorias)) {
+          const disponiveis = topicos.filter(t => buscarConteudoAjuda(t));
+          if (disponiveis.length > 0) {
+            linhas.push('\r\n\x1b[33m' + cat + ':\x1b[0m');
+            linhas.push('  ' + disponiveis.join(', '));
+          }
+        }
+        linhas.push('\r\n\x1b[2mDigite o nome de qualquer tópico para ver mais informações.\x1b[0m');
+        terminal.writeln(linhas.join('\r\n'));
+      }
+
+      function executarComandoAjuda(terminal, linha) {
+        const entrada = linha.trim();
+        if (!entrada) {
+          exibirBoasVindasAjuda(terminal);
+          ajudaPrompt(terminal);
+          return;
+        }
+        const norm = normalizarParaBusca(entrada);
+        if (norm === 'sair') {
+          modoAjuda = false;
+          terminal.writeln('\r\n\x1b[2mSaindo do modo de ajuda...\x1b[0m');
+          deleguaPrompt(terminal);
+          return;
+        }
+        if (norm === 'topicos' || norm === 'tópicos') {
+          listarTopicosAjuda(terminal);
+          ajudaPrompt(terminal);
+          return;
+        }
+        const conteudo = buscarConteudoAjuda(entrada);
+        if (conteudo) {
+          terminal.write(aplicarRealceSintaxeWeb(conteudo).replace(/\n/g, '\r\n'));
+        } else {
+          terminal.writeln('\r\n\x1b[31mNenhuma ajuda disponível para "' + entrada + '".\x1b[0m');
+          terminal.writeln('\x1b[2mDigite \x1b[32mtópicos\x1b[0m\x1b[2m para ver os tópicos disponíveis.\x1b[0m');
+        }
+        ajudaPrompt(terminal);
       }
 
       var comandos = {
@@ -197,15 +965,24 @@
       term.onData((e) => {
         switch (e) {
           case "": // Ctrl+C
-            if (modoDelegua) {
+            if (modoAjuda) {
+              modoAjuda = false;
+              term.write("^C");
+              deleguaPrompt(term);
+            } else if (modoDelegua) {
               modoDelegua = false;
+              term.write("^C");
+              terminalPrompt(term);
+            } else {
+              term.write("^C");
+              terminalPrompt(term);
             }
-
-            term.write("^C");
-            terminalPrompt(term);
             break;
           case "\r": // Enter
-            if (modoDelegua) {
+            if (modoAjuda) {
+              term.write("\r\n");
+              executarComandoAjuda(term, comando);
+            } else if (modoDelegua) {
               term.write("\r\n");
               if (comandoLeia) {
                 comandoLeia = false;
