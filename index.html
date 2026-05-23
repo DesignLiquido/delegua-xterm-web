@@ -4,7 +4,7 @@
     <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css" />
     <link rel="stylesheet" href="/css/estilos.css" />
 
-    <script src="node_modules/@designliquido/delegua/umd/delegua.js"></script>
+    <script src="js/delegua-xterm-web.js"></script>
     <script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
     <script src="node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
     <script src="/js/comandos.js"></script>
@@ -21,7 +21,7 @@
       const fitAddon = new FitAddon.FitAddon();
       term.loadAddon(fitAddon);
 
-      const delegua = window.Delegua;
+      const delegua = window.DeleguaTerminal;
       var comando = "";
       var cursorPos = 0;
       var resultadoLeia = "";
@@ -31,7 +31,7 @@
 
       const lexador = new delegua.Lexador();
       const avaliadorSintatico = new delegua.AvaliadorSintatico();
-      const interpretador = new delegua.InterpretadorBase('', false, (t) => term.write(t + "\r\n"), (t) => term.write(t));
+      const interpretador = delegua.criarInterpretador((t) => term.write(t + "\r\n"), (t) => term.write(t));
       interpretador.interfaceEntradaSaida = {
         question: (mensagem, callback) => {
           comandoLeia = true;
