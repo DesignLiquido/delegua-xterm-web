@@ -1,14 +1,14 @@
 ﻿<!DOCTYPE html>
 <html>
   <head>
-    <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css" />
-    <link rel="stylesheet" href="/css/estilos.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css" />
+    <link rel="stylesheet" href="css/estilos.css" />
 
     <script src="js/delegua-xterm-web.js"></script>
-    <script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
-    <script src="node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
-    <script src="/js/comandos.js"></script>
-    <script src="/js/await-notify.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.js"></script>
+    <script src="js/comandos.js"></script>
+    <script src="js/await-notify.js"></script>
   </head>
   <body>
     <div id="terminal"></div>
@@ -57,7 +57,7 @@
       };
 
       async function executarInstrucaoDelegua(terminal, linha) {
-        const resultadoLexador = lexador.mapear([linha], -1);
+        const resultadoLexador = lexador.mapear(Array.isArray(linha) ? linha : [linha], -1);
         const resultadoAvaliacaoSintatica = await avaliadorSintatico.analisar(resultadoLexador);
         if (resultadoAvaliacaoSintatica.erros.length > 0) {
           for (const erro of resultadoAvaliacaoSintatica.erros) {
@@ -963,6 +963,23 @@ Representa a ausência de valor.
       };
 
       term.onData((e) => {
+        // Paste: multi-char string with embedded newlines
+        if (e.length > 1 && (e.includes('\r') || e.includes('\n'))) {
+          const linhas = e.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.length > 0);
+          if (linhas.length > 0) {
+            term.write(linhas.join('\r\n') + '\r\n');
+            if (modoAjuda) {
+              executarComandoAjuda(term, linhas[linhas.length - 1]);
+            } else if (modoDelegua) {
+              executarInstrucaoDelegua(term, linhas);
+            } else {
+              executarComando(term, linhas[linhas.length - 1]);
+            }
+            comando = '';
+            cursorPos = 0;
+          }
+          return;
+        }
         switch (e) {
           case "": // Ctrl+C
             if (modoAjuda) {
